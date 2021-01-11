@@ -1,0 +1,83 @@
+//Server
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Net.Sockets;
+using System.Net;
+
+namespace server
+{
+    class Program
+    {
+        private  static Socket serversckt = new Socket
+        (AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        private static byte[] buffer = new byte[1024];
+        private static List<Socket> clientsocket = new List<Socket>();
+       
+        static void Main(string[] args)
+        {
+            Console.Title = "Server";
+            SetupServer();
+            Console.ReadLine();
+
+        }
+
+        private static void SetupServer()
+        {
+            Console.WriteLine("Server Started");
+            serversckt.Bind(new IPEndPoint(IPAddress.Any, 100));
+            serversckt.Listen(1);
+            serversckt.BeginAccept(new AsyncCallback(AcceptCallBack), null);
+
+        }
+
+        private static void AcceptCallBack(IAsyncResult AR)
+        {
+            Socket sckt = serversckt.EndAccept(AR);
+            clientsocket.Add(sckt);
+            Console.WriteLine("Client Connected");
+            sckt.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, new AsyncCallback(ReceiveCallBack), sckt);
+            serversckt.BeginAccept(new AsyncCallback(AcceptCallBack), null);
+
+        }
+
+        private static void ReceiveCallBack(IAsyncResult AR)
+        {
+            Socket sckt = (Socket)AR.AsyncState;
+
+            int received = sckt.EndReceive(AR);
+            byte[] dataBuf = new byte[received];
+            Array.Copy(buffer, dataBuf, received);
+
+            string text = Encoding.ASCII.GetString(dataBuf);
+            Console.WriteLine("Message Recieved: " + text);
+
+            string response = string.Empty;
+
+            if (text.ToLower() != "get time")
+            {
+                response = "Invalid Request";
+            }
+            else
+            {
+                response = DateTime.Now.ToLongTimeString();
+            }
+
+            byte[] data = Encoding.ASCII.GetBytes(response);
+            sckt.BeginSend(data, 0, data.Length, SocketFlags.None, new AsyncCallback(SendCallback), sckt);
+            sckt.BeginReceive(buffer, 0, buffer.Length, SocketFlags.None, new AsyncCallback(ReceiveCallBack), sckt);
+
+        }
+
+        private static void SendCallback(IAsyncResult AR)
+        {
+            Socket sckt = (Socket)AR.AsyncState;
+            sckt.EndSend(AR);
+
+        }
+
+       }
+}
